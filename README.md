@@ -79,28 +79,20 @@ Our mission is simple:
 
 ---
 
-### 📊 GitHub Stats
-
-<p align="center">
-<img src="https://github-readme-stats.vercel.app/api?username=Tayyab-Hassan&show_icons=true&theme=tokyonight" />
-</p>
-
-<p align="center">
-<img src="https://github-readme-stats.vercel.app/api/top-langs/?username=Tayyab-Hassan&layout=compact&theme=tokyonight" />
-</p>
-
----
-
 ### 📫 Connect With Me
 
 <p align="left">
-<a href="https://linkedin.com/in/muhammad-tayyab"><img src="https://raw.githubusercontent.com/rahuldkjain/github-profile-readme-generator/master/src/images/icons/Social/linked-in-alt.svg" width="40" height="30"/></a>
+<a href="https://linkedin.com/in/muhammad-tayyab-software-developer14398"><img src="https://raw.githubusercontent.com/rahuldkjain/github-profile-readme-generator/master/src/images/icons/Social/linked-in-alt.svg" width="40" height="30"/></a>
 <a href="mailto:m.tayyab.143dev@gmail.com"><img src="https://cdn-icons-png.flaticon.com/512/732/732200.png" width="30" height="30"/></a>
 </p>
 
-📧 **m.tayyab.143dev@gmail.com**  
-📍 Charsadda, Pakistan  
+📧  **m.tayyab.143dev@gmail.com**  
+
+<a href="https://wa.me/+923110192166" target="_blank">
+<img src="https://cdn-icons-png.flaticon.com/512/733/733585.png" width="20"/>  0311 0192166
+</a><br>
+📍 <b>Charsadda, Pakistan</b>
 
 ---
-
+<p align ="center"><img align="center" src="https://github-readme-streak-stats.herokuapp.com/?user=tayyab-hassan&" alt="tayyab-hassan" /></p>
 <h3 align="center">⭐ ATSpark — Spark Your Digital Future</h3>
