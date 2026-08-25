@@ -2,34 +2,47 @@
   width="900"
   height="300"
   viewBox="0 0 900 300"
-  fill="none"
   xmlns="http://www.w3.org/2000/svg"
 >
 
   <defs>
 
     <linearGradient
-      id="background"
+      id="bg"
       x1="0"
       y1="0"
       x2="900"
       y2="300"
       gradientUnits="userSpaceOnUse"
     >
-      <stop stop-color="#0D1117"/>
-      <stop offset="1" stop-color="#161B22"/>
+      <stop
+        offset="0"
+        stop-color="#0D1117"
+      />
+
+      <stop
+        offset="1"
+        stop-color="#161B22"
+      />
     </linearGradient>
 
     <linearGradient
-      id="accent"
+      id="green"
       x1="0"
       y1="0"
       x2="900"
       y2="0"
       gradientUnits="userSpaceOnUse"
     >
-      <stop stop-color="#39D353"/>
-      <stop offset="1" stop-color="#26A641"/>
+      <stop
+        offset="0"
+        stop-color="#39D353"
+      />
+
+      <stop
+        offset="1"
+        stop-color="#26A641"
+      />
     </linearGradient>
 
     <filter
@@ -39,40 +52,45 @@
       width="140%"
       height="140%"
     >
+
       <feDropShadow
         dx="0"
         dy="8"
         stdDeviation="12"
         flood-opacity="0.25"
       />
+
     </filter>
 
   </defs>
 
   <!-- Main Card -->
+
   <rect
     x="10"
     y="10"
     width="880"
     height="280"
     rx="22"
-    fill="url(#background)"
+    fill="url(#bg)"
     stroke="#30363D"
     stroke-width="1"
     filter="url(#shadow)"
   />
 
-  <!-- Top Accent -->
+  <!-- Top Green Accent -->
+
   <rect
     x="10"
     y="10"
     width="880"
     height="5"
     rx="2.5"
-    fill="url(#accent)"
+    fill="url(#green)"
   />
 
   <!-- Header -->
+
   <text
     x="45"
     y="58"
@@ -95,6 +113,7 @@
   </text>
 
   <!-- Current Streak -->
+
   <rect
     x="45"
     y="115"
@@ -110,15 +129,15 @@
     y="148"
     fill="#39D353"
     font-family="Arial, Helvetica, sans-serif"
-    font-size="15"
-    font-weight="600"
+    font-size="14"
+    font-weight="700"
   >
     CURRENT STREAK
   </text>
 
   <text
     x="68"
-    y="187"
+    y="188"
     fill="#F0F6FC"
     font-family="Arial, Helvetica, sans-serif"
     font-size="32"
@@ -128,8 +147,8 @@
   </text>
 
   <text
-    x="115"
-    y="186"
+    x="118"
+    y="187"
     fill="#8B949E"
     font-family="Arial, Helvetica, sans-serif"
     font-size="14"
@@ -138,6 +157,7 @@
   </text>
 
   <!-- Longest Streak -->
+
   <rect
     x="325"
     y="115"
@@ -153,15 +173,15 @@
     y="148"
     fill="#58A6FF"
     font-family="Arial, Helvetica, sans-serif"
-    font-size="15"
-    font-weight="600"
+    font-size="14"
+    font-weight="700"
   >
     LONGEST STREAK
   </text>
 
   <text
     x="348"
-    y="187"
+    y="188"
     fill="#F0F6FC"
     font-family="Arial, Helvetica, sans-serif"
     font-size="32"
@@ -172,7 +192,7 @@
 
   <text
     x="405"
-    y="186"
+    y="187"
     fill="#8B949E"
     font-family="Arial, Helvetica, sans-serif"
     font-size="14"
@@ -190,7 +210,8 @@
     Mar 3 - Mar 4, 2026
   </text>
 
-  <!-- Lifetime Contributions -->
+  <!-- Total Contributions -->
+
   <rect
     x="605"
     y="115"
@@ -206,21 +227,21 @@
     y="148"
     fill="#D29922"
     font-family="Arial, Helvetica, sans-serif"
-    font-size="15"
-    font-weight="600"
+    font-size="14"
+    font-weight="700"
   >
     CONTRIBUTIONS
   </text>
 
   <text
     x="628"
-    y="187"
+    y="188"
     fill="#F0F6FC"
     font-family="Arial, Helvetica, sans-serif"
     font-size="32"
     font-weight="700"
   >
-    56
+    60
   </text>
 
   <text
@@ -233,7 +254,8 @@
     2022 - 2026
   </text>
 
-  <!-- Footer -->
+  <!-- Footer Line -->
+
   <line
     x1="45"
     y1="240"
@@ -241,6 +263,8 @@
     y2="240"
     stroke="#30363D"
   />
+
+  <!-- ATSpark -->
 
   <text
     x="45"
@@ -251,6 +275,8 @@
   >
     ⭐ ATSpark — Spark Your Digital Future
   </text>
+
+  <!-- Updated -->
 
   <text
     x="855"
