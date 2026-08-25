@@ -94,5 +94,11 @@ Our mission is simple:
 📍 <b>Charsadda, Pakistan</b>
 
 ---
-<p align ="center"><img align="center" src="https://github-readme-streak-stats.herokuapp.com/?user=tayyab-hassan&" alt="tayyab-hassan" /></p>
+<p align="center">
+  <img
+    src="https://raw.githubusercontent.com/Tayyab-Hassan/Tayyab-Hassan/main/assets/github-streak.svg"
+    alt="GitHub Contribution Streak"
+  />
+</p>
+
 <h3 align="center">⭐ ATSpark — Spark Your Digital Future</h3>
