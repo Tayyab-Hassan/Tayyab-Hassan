@@ -2,6 +2,7 @@ name: Update GitHub Streak
 
 on:
   schedule:
+    # Run every day at 01:00 UTC
     - cron: "0 1 * * *"
 
   workflow_dispatch:
@@ -19,7 +20,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Generate GitHub Streak
         env:
@@ -31,14 +32,36 @@ jobs:
           import json
           import urllib.request
           from datetime import date, timedelta
+          from pathlib import Path
+
+          # ============================================================
+          # CONFIGURATION
+          # ============================================================
 
           username = os.environ["GITHUB_USERNAME"]
           token = os.environ["GH_TOKEN"]
 
-          query = """
-          query($login: String!) {
+          START_YEAR = 2022
+          CURRENT_DATE = date.today()
+          CURRENT_YEAR = CURRENT_DATE.year
+
+          # ============================================================
+          # GITHUB GRAPHQL REQUEST
+          # ============================================================
+
+          GRAPHQL_URL = "https://api.github.com/graphql"
+
+          QUERY = """
+          query(
+            $login: String!,
+            $from: DateTime!,
+            $to: DateTime!
+          ) {
             user(login: $login) {
-              contributionsCollection {
+              contributionsCollection(
+                from: $from,
+                to: $to
+              ) {
                 contributionCalendar {
                   totalContributions
                   weeks {
@@ -53,67 +76,134 @@ jobs:
           }
           """
 
-          payload = json.dumps({
-              "query": query,
-              "variables": {
-                  "login": username
-              }
-          }).encode()
+          def github_request(from_date, to_date):
+              payload = json.dumps({
+                  "query": QUERY,
+                  "variables": {
+                      "login": username,
+                      "from": f"{from_date}T00:00:00Z",
+                      "to": f"{to_date}T23:59:59Z"
+                  }
+              }).encode("utf-8")
 
-          request = urllib.request.Request(
-              "https://api.github.com/graphql",
-              data=payload,
-              headers={
-                  "Authorization": f"Bearer {token}",
-                  "Content-Type": "application/json",
-                  "User-Agent": "github-streak-generator"
-              },
-              method="POST"
-          )
+              request = urllib.request.Request(
+                  GRAPHQL_URL,
+                  data=payload,
+                  headers={
+                      "Authorization": f"Bearer {token}",
+                      "Content-Type": "application/json",
+                      "User-Agent": "Tayyab-Hassan-GitHub-Streak"
+                  },
+                  method="POST"
+              )
 
-          with urllib.request.urlopen(request) as response:
-              result = json.loads(response.read())
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  return json.loads(response.read().decode("utf-8"))
 
-          if "errors" in result:
-              print(json.dumps(result["errors"], indent=2))
-              raise SystemExit("GitHub GraphQL API error")
+          # ============================================================
+          # FETCH ALL YEARS
+          # ============================================================
 
-          calendar = result["data"]["user"]["contributionsCollection"]["contributionCalendar"]
+          all_days = {}
 
-          days = []
+          print("=" * 60)
+          print("GitHub Lifetime Contribution Fetch")
+          print("=" * 60)
+          print(f"User: {username}")
+          print(f"Range: {START_YEAR} - {CURRENT_YEAR}")
+          print()
 
-          for week in calendar["weeks"]:
-              for day in week["contributionDays"]:
-                  days.append({
-                      "date": day["date"],
-                      "count": day["contributionCount"]
-                  })
+          for year in range(START_YEAR, CURRENT_YEAR + 1):
 
-          days.sort(key=lambda x: x["date"])
+              from_date = date(year, 1, 1)
 
-          total = calendar["totalContributions"]
+              if year == CURRENT_YEAR:
+                  to_date = CURRENT_DATE
+              else:
+                  to_date = date(year, 12, 31)
 
-          # ----------------------------------------
-          # Calculate current streak
-          # ----------------------------------------
+              print(f"Fetching {year}: {from_date} -> {to_date}")
 
-          today = date.today()
+              result = github_request(
+                  from_date.isoformat(),
+                  to_date.isoformat()
+              )
 
-          day_map = {
-              date.fromisoformat(x["date"]): x["count"]
-              for x in days
-          }
+              if "errors" in result:
+                  print()
+                  print("GitHub GraphQL API returned an error:")
+                  print(json.dumps(result["errors"], indent=2))
+                  raise SystemExit(1)
+
+              user = result.get("data", {}).get("user")
+
+              if not user:
+                  raise SystemExit(
+                      f"GitHub user '{username}' could not be found."
+                  )
+
+              calendar = (
+                  user["contributionsCollection"]
+                  ["contributionCalendar"]
+              )
+
+              year_total = calendar["totalContributions"]
+
+              print(f"  Contributions: {year_total}")
+
+              for week in calendar["weeks"]:
+                  for contribution_day in week["contributionDays"]:
+
+                      day_date = date.fromisoformat(
+                          contribution_day["date"]
+                      )
+
+                      count = contribution_day["contributionCount"]
+
+                      # If the same day somehow appears twice,
+                      # keep the highest value.
+                      all_days[day_date] = max(
+                          all_days.get(day_date, 0),
+                          count
+                      )
+
+          print()
+          print("=" * 60)
+
+          # ============================================================
+          # TOTAL CONTRIBUTIONS
+          # ============================================================
+
+          lifetime_total = sum(all_days.values())
+
+          print(f"Lifetime Contributions: {lifetime_total}")
+
+          # ============================================================
+          # CURRENT STREAK
+          #
+          # If today has no contribution, check yesterday.
+          # This prevents the streak from immediately becoming 0
+          # simply because today's contribution has not happened yet.
+          # ============================================================
 
           current_streak = 0
-          cursor = today
 
-          while day_map.get(cursor, 0) > 0:
+          if all_days.get(CURRENT_DATE, 0) > 0:
+              cursor = CURRENT_DATE
+          else:
+              cursor = CURRENT_DATE - timedelta(days=1)
+
+          while all_days.get(cursor, 0) > 0:
               current_streak += 1
               cursor -= timedelta(days=1)
 
-          # ----------------------------------------
-          # Calculate longest streak
-          # ----------------------------------------
+          print(f"Current Streak: {current_streak}")
+
+          # ============================================================
+          # LONGEST STREAK
+          # ============================================================
+
+          sorted_dates = sorted(all_days.keys())
 
           longest_streak = 0
           longest_start = None
@@ -121,116 +211,370 @@ jobs:
 
           temp_streak = 0
           temp_start = None
+          previous_date = None
 
-          for item in days:
-              d = date.fromisoformat(item["date"])
+          for current_day in sorted_dates:
 
-              if item["count"] > 0:
-                  if temp_streak == 0:
-                      temp_start = d
+              contribution = all_days[current_day]
 
-                  temp_streak += 1
+              if contribution > 0:
+
+                  # Start a new streak if:
+                  # - there was no previous contribution day
+                  # - OR there is a gap
+                  if (
+                      temp_streak == 0
+                      or previous_date is None
+                      or current_day != previous_date + timedelta(days=1)
+                  ):
+                      temp_streak = 1
+                      temp_start = current_day
+
+                  else:
+                      temp_streak += 1
 
                   if temp_streak > longest_streak:
                       longest_streak = temp_streak
                       longest_start = temp_start
-                      longest_end = d
+                      longest_end = current_day
+
+                  previous_date = current_day
 
               else:
+                  # A zero-contribution day breaks the streak.
                   temp_streak = 0
                   temp_start = None
+                  previous_date = current_day
 
-          # ----------------------------------------
-          # Generate SVG
-          # ----------------------------------------
+          print(f"Longest Streak: {longest_streak}")
+
+          # ============================================================
+          # FORMAT LONGEST STREAK DATE
+          # ============================================================
 
           if longest_start and longest_end:
-              longest_range = (
-                  f"{longest_start.strftime('%b %-d')} - "
-                  f"{longest_end.strftime('%b %-d')}"
-              )
+
+              if longest_start.year == longest_end.year:
+                  longest_range = (
+                      f"{longest_start.strftime('%b %d')} - "
+                      f"{longest_end.strftime('%b %d, %Y')}"
+                  )
+              else:
+                  longest_range = (
+                      f"{longest_start.strftime('%b %d, %Y')} - "
+                      f"{longest_end.strftime('%b %d, %Y')}"
+                  )
+
           else:
-              longest_range = "N/A"
+              longest_range = "No streak yet"
 
-          svg = f'''<svg width="700" height="180" viewBox="0 0 700 180" xmlns="http://www.w3.org/2000/svg">
-            <style>
-              .title {{
-                font: 700 22px Arial, sans-serif;
-                fill: #24292f;
-              }}
+          # Remove leading zeros from dates.
+          longest_range = longest_range.replace(" 0", " ")
 
-              .number {{
-                font: 700 32px Arial, sans-serif;
-                fill: #24292f;
-              }}
+          # ============================================================
+          # GITHUB MEMBER SINCE
+          # ============================================================
 
-              .label {{
-                font: 14px Arial, sans-serif;
-                fill: #57606a;
-              }}
+          member_since = str(START_YEAR)
 
-              .small {{
-                font: 12px Arial, sans-serif;
-                fill: #57606a;
-              }}
-            </style>
+          # ============================================================
+          # PROFESSIONAL SVG
+          # ============================================================
 
+          svg = f'''<svg
+            width="900"
+            height="300"
+            viewBox="0 0 900 300"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+
+            <defs>
+
+              <linearGradient
+                id="background"
+                x1="0"
+                y1="0"
+                x2="900"
+                y2="300"
+                gradientUnits="userSpaceOnUse"
+              >
+                <stop stop-color="#0D1117"/>
+                <stop offset="1" stop-color="#161B22"/>
+              </linearGradient>
+
+              <linearGradient
+                id="accent"
+                x1="0"
+                y1="0"
+                x2="900"
+                y2="0"
+                gradientUnits="userSpaceOnUse"
+              >
+                <stop stop-color="#39D353"/>
+                <stop offset="1" stop-color="#26A641"/>
+              </linearGradient>
+
+              <filter
+                id="shadow"
+                x="-20%"
+                y="-20%"
+                width="140%"
+                height="140%"
+              >
+                <feDropShadow
+                  dx="0"
+                  dy="8"
+                  stdDeviation="12"
+                  flood-opacity="0.25"
+                />
+              </filter>
+
+            </defs>
+
+            <!-- Main Card -->
             <rect
-              x="0"
-              y="0"
-              width="700"
-              height="180"
-              rx="12"
-              fill="#ffffff"
-              stroke="#d0d7de"
+              x="10"
+              y="10"
+              width="880"
+              height="280"
+              rx="22"
+              fill="url(#background)"
+              stroke="#30363D"
+              stroke-width="1"
+              filter="url(#shadow)"
             />
 
-            <text x="30" y="38" class="title">
+            <!-- Top Accent -->
+            <rect
+              x="10"
+              y="10"
+              width="880"
+              height="5"
+              rx="2.5"
+              fill="url(#accent)"
+            />
+
+            <!-- Header -->
+            <text
+              x="45"
+              y="58"
+              fill="#F0F6FC"
+              font-family="Arial, Helvetica, sans-serif"
+              font-size="24"
+              font-weight="700"
+            >
               GitHub Contribution Streak
             </text>
 
-            <text x="30" y="82" class="number">
-              {total}
+            <text
+              x="45"
+              y="84"
+              fill="#8B949E"
+              font-family="Arial, Helvetica, sans-serif"
+              font-size="14"
+            >
+              github.com/{username}
             </text>
 
-            <text x="30" y="105" class="label">
-              Total Contributions
+            <!-- Current Streak -->
+            <rect
+              x="45"
+              y="115"
+              width="250"
+              height="100"
+              rx="16"
+              fill="#161B22"
+              stroke="#30363D"
+            />
+
+            <text
+              x="68"
+              y="148"
+              fill="#39D353"
+              font-family="Arial, Helvetica, sans-serif"
+              font-size="15"
+              font-weight="600"
+            >
+              CURRENT STREAK
             </text>
 
-            <text x="270" y="82" class="number">
+            <text
+              x="68"
+              y="187"
+              fill="#F0F6FC"
+              font-family="Arial, Helvetica, sans-serif"
+              font-size="32"
+              font-weight="700"
+            >
               {current_streak}
             </text>
 
-            <text x="270" y="105" class="label">
-              Current Streak
+            <text
+              x="115"
+              y="186"
+              fill="#8B949E"
+              font-family="Arial, Helvetica, sans-serif"
+              font-size="14"
+            >
+              days
             </text>
 
-            <text x="500" y="82" class="number">
+            <!-- Longest Streak -->
+            <rect
+              x="325"
+              y="115"
+              width="250"
+              height="100"
+              rx="16"
+              fill="#161B22"
+              stroke="#30363D"
+            />
+
+            <text
+              x="348"
+              y="148"
+              fill="#58A6FF"
+              font-family="Arial, Helvetica, sans-serif"
+              font-size="15"
+              font-weight="600"
+            >
+              LONGEST STREAK
+            </text>
+
+            <text
+              x="348"
+              y="187"
+              fill="#F0F6FC"
+              font-family="Arial, Helvetica, sans-serif"
+              font-size="32"
+              font-weight="700"
+            >
               {longest_streak}
             </text>
 
-            <text x="500" y="105" class="label">
-              Longest Streak
+            <text
+              x="405"
+              y="186"
+              fill="#8B949E"
+              font-family="Arial, Helvetica, sans-serif"
+              font-size="14"
+            >
+              days
             </text>
 
-            <text x="500" y="130" class="small">
+            <text
+              x="348"
+              y="204"
+              fill="#8B949E"
+              font-family="Arial, Helvetica, sans-serif"
+              font-size="10"
+            >
               {longest_range}
             </text>
 
-            <text x="30" y="150" class="small">
-              github.com/{username}
+            <!-- Lifetime Contributions -->
+            <rect
+              x="605"
+              y="115"
+              width="250"
+              height="100"
+              rx="16"
+              fill="#161B22"
+              stroke="#30363D"
+            />
+
+            <text
+              x="628"
+              y="148"
+              fill="#D29922"
+              font-family="Arial, Helvetica, sans-serif"
+              font-size="15"
+              font-weight="600"
+            >
+              CONTRIBUTIONS
             </text>
+
+            <text
+              x="628"
+              y="187"
+              fill="#F0F6FC"
+              font-family="Arial, Helvetica, sans-serif"
+              font-size="32"
+              font-weight="700"
+            >
+              {lifetime_total}
+            </text>
+
+            <text
+              x="628"
+              y="204"
+              fill="#8B949E"
+              font-family="Arial, Helvetica, sans-serif"
+              font-size="10"
+            >
+              {member_since} - {CURRENT_YEAR}
+            </text>
+
+            <!-- Footer -->
+            <line
+              x1="45"
+              y1="240"
+              x2="855"
+              y2="240"
+              stroke="#30363D"
+            />
+
+            <text
+              x="45"
+              y="267"
+              fill="#8B949E"
+              font-family="Arial, Helvetica, sans-serif"
+              font-size="12"
+            >
+              ⭐ ATSpark — Spark Your Digital Future
+            </text>
+
+            <text
+              x="855"
+              y="267"
+              text-anchor="end"
+              fill="#39D353"
+              font-family="Arial, Helvetica, sans-serif"
+              font-size="12"
+              font-weight="600"
+            >
+              Updated automatically
+            </text>
+
           </svg>'''
 
-          os.makedirs("assets", exist_ok=True)
+          # ============================================================
+          # SAVE SVG
+          # ============================================================
 
-          with open("assets/github-streak.svg", "w", encoding="utf-8") as f:
-              f.write(svg)
+          output_dir = Path("assets")
+          output_dir.mkdir(parents=True, exist_ok=True)
 
-          print("Total Contributions:", total)
-          print("Current Streak:", current_streak)
-          print("Longest Streak:", longest_streak)
-          print("Longest Range:", longest_range)
+          output_file = output_dir / "github-streak.svg"
+
+          output_file.write_text(
+              svg,
+              encoding="utf-8"
+          )
+
+          print()
+          print("=" * 60)
+          print("FINAL RESULTS")
+          print("=" * 60)
+          print(f"Lifetime Contributions : {lifetime_total}")
+          print(f"Current Streak         : {current_streak} days")
+          print(f"Longest Streak         : {longest_streak} days")
+          print(f"Longest Streak Range   : {longest_range}")
+          print(f"GitHub Since            : {member_since}")
+          print(f"SVG                     : {output_file}")
+          print("=" * 60)
+
           PY
 
       - name: Commit updated streak
@@ -243,6 +587,6 @@ jobs:
           if git diff --cached --quiet; then
             echo "No changes to commit."
           else
-            git commit -m "Update GitHub streak"
+            git commit -m "chore: update GitHub contribution streak"
             git push
           fi
