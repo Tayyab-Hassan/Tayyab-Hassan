@@ -1,0 +1,69 @@
+<svg width="700" height="180" viewBox="0 0 700 180" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    .title {
+      font: 700 22px Arial, sans-serif;
+      fill: #24292f;
+    }
+
+    .number {
+      font: 700 32px Arial, sans-serif;
+      fill: #24292f;
+    }
+
+    .label {
+      font: 14px Arial, sans-serif;
+      fill: #57606a;
+    }
+
+    .small {
+      font: 12px Arial, sans-serif;
+      fill: #57606a;
+    }
+  </style>
+
+  <rect
+    x="0"
+    y="0"
+    width="700"
+    height="180"
+    rx="12"
+    fill="#ffffff"
+    stroke="#d0d7de"
+  />
+
+  <text x="30" y="38" class="title">
+    GitHub Contribution Streak
+  </text>
+
+  <text x="30" y="82" class="number">
+    31
+  </text>
+
+  <text x="30" y="105" class="label">
+    Total Contributions
+  </text>
+
+  <text x="270" y="82" class="number">
+    1
+  </text>
+
+  <text x="270" y="105" class="label">
+    Current Streak
+  </text>
+
+  <text x="500" y="82" class="number">
+    2
+  </text>
+
+  <text x="500" y="105" class="label">
+    Longest Streak
+  </text>
+
+  <text x="500" y="130" class="small">
+    Mar 3 - Mar 4
+  </text>
+
+  <text x="30" y="150" class="small">
+    github.com/Tayyab-Hassan
+  </text>
+</svg>
