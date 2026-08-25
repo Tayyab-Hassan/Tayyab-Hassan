@@ -2,10 +2,10 @@ name: Update GitHub Streak
 
 on:
   schedule:
-    # Run every day at 01:00 UTC
+    # Every day at 01:00 UTC
     - cron: "0 1 * * *"
 
-  # Allows you to run it manually
+  # Allow manual execution
   workflow_dispatch:
 
 permissions:
@@ -18,16 +18,17 @@ jobs:
     steps:
 
       # ============================================================
-      # 1. Checkout latest repository
+      # CHECKOUT
       # ============================================================
 
       - name: Checkout repository
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
+          ref: main
 
       # ============================================================
-      # 2. Generate GitHub Streak SVG
+      # GENERATE STREAK SVG
       # ============================================================
 
       - name: Generate GitHub Streak
@@ -49,8 +50,8 @@ jobs:
           # CONFIGURATION
           # ==========================================================
 
-          username = os.environ["GITHUB_USERNAME"]
-          token = os.environ["GH_TOKEN"]
+          USERNAME = os.environ["GITHUB_USERNAME"]
+          TOKEN = os.environ["GH_TOKEN"]
 
           START_YEAR = 2022
           TODAY = date.today()
@@ -59,7 +60,7 @@ jobs:
           GRAPHQL_URL = "https://api.github.com/graphql"
 
           # ==========================================================
-          # GITHUB GRAPHQL QUERY
+          # GRAPHQL QUERY
           # ==========================================================
 
           QUERY = """
@@ -89,7 +90,7 @@ jobs:
           """
 
           # ==========================================================
-          # GITHUB API FUNCTION
+          # GITHUB GRAPHQL REQUEST
           # ==========================================================
 
           def github_request(from_date, to_date):
@@ -97,7 +98,7 @@ jobs:
               payload = json.dumps({
                   "query": QUERY,
                   "variables": {
-                      "login": username,
+                      "login": USERNAME,
                       "from": f"{from_date}T00:00:00Z",
                       "to": f"{to_date}T23:59:59Z"
                   }
@@ -107,7 +108,7 @@ jobs:
                   GRAPHQL_URL,
                   data=payload,
                   headers={
-                      "Authorization": f"Bearer {token}",
+                      "Authorization": f"Bearer {TOKEN}",
                       "Content-Type": "application/json",
                       "User-Agent": "Tayyab-Hassan-GitHub-Streak"
                   },
@@ -116,7 +117,7 @@ jobs:
 
               with urllib.request.urlopen(
                   request,
-                  timeout=30
+                  timeout=60
               ) as response:
 
                   return json.loads(
@@ -124,7 +125,7 @@ jobs:
                   )
 
           # ==========================================================
-          # FETCH CONTRIBUTIONS FROM 2022 → CURRENT YEAR
+          # FETCH CONTRIBUTIONS
           # ==========================================================
 
           all_days = {}
@@ -133,9 +134,9 @@ jobs:
           print("=" * 70)
           print("GITHUB CONTRIBUTION DATA")
           print("=" * 70)
-          print(f"Username : {username}")
-          print(f"From     : {START_YEAR}")
-          print(f"To       : {CURRENT_YEAR}")
+          print(f"Username : {USERNAME}")
+          print(f"Start    : {START_YEAR}")
+          print(f"End      : {CURRENT_YEAR}")
           print()
 
           for year in range(
@@ -163,22 +164,37 @@ jobs:
 
               print(
                   f"Fetching {year}: "
-                  f"{from_date} → {to_date}"
+                  f"{from_date} -> {to_date}"
               )
 
-              result = github_request(
-                  from_date.isoformat(),
-                  to_date.isoformat()
-              )
+              try:
+
+                  result = github_request(
+                      from_date.isoformat(),
+                      to_date.isoformat()
+                  )
+
+              except Exception as error:
+
+                  print()
+                  print(
+                      f"ERROR while fetching {year}:"
+                  )
+                  print(error)
+
+                  raise SystemExit(1)
 
               # ======================================================
-              # API ERROR
+              # GRAPHQL ERRORS
               # ======================================================
 
               if "errors" in result:
 
                   print()
-                  print("GITHUB API ERROR:")
+                  print(
+                      "GitHub GraphQL API Error:"
+                  )
+
                   print(
                       json.dumps(
                           result["errors"],
@@ -186,12 +202,10 @@ jobs:
                       )
                   )
 
-                  raise SystemExit(
-                      "GitHub GraphQL API request failed."
-                  )
+                  raise SystemExit(1)
 
               # ======================================================
-              # USER CHECK
+              # USER
               # ======================================================
 
               user = (
@@ -200,11 +214,16 @@ jobs:
                   .get("user")
               )
 
-              if not user:
+              if user is None:
 
                   raise SystemExit(
-                      f"GitHub user '{username}' was not found."
+                      f"GitHub user '{USERNAME}' "
+                      f"was not found."
                   )
+
+              # ======================================================
+              # CALENDAR
+              # ======================================================
 
               calendar = (
                   user[
@@ -214,16 +233,19 @@ jobs:
                   ]
               )
 
-              year_total = calendar[
-                  "totalContributions"
-              ]
+              year_total = (
+                  calendar[
+                      "totalContributions"
+                  ]
+              )
 
               print(
-                  f"  Contributions: {year_total}"
+                  f"  Contributions: "
+                  f"{year_total}"
               )
 
               # ======================================================
-              # SAVE DAILY CONTRIBUTIONS
+              # DAILY CONTRIBUTIONS
               # ======================================================
 
               for week in calendar["weeks"]:
@@ -232,8 +254,10 @@ jobs:
                       week["contributionDays"]
                   ):
 
-                      day_date = date.fromisoformat(
-                          contribution_day["date"]
+                      contribution_date = (
+                          date.fromisoformat(
+                              contribution_day["date"]
+                          )
                       )
 
                       contribution_count = (
@@ -242,12 +266,12 @@ jobs:
                           ]
                       )
 
-                      all_days[day_date] = (
-                          contribution_count
-                      )
+                      all_days[
+                          contribution_date
+                      ] = contribution_count
 
           # ==========================================================
-          # LIFETIME CONTRIBUTIONS
+          # LIFETIME TOTAL
           # ==========================================================
 
           lifetime_total = sum(
@@ -257,15 +281,15 @@ jobs:
           print()
           print("=" * 70)
           print(
-              f"Lifetime Contributions: "
-              f"{lifetime_total}"
+              "Lifetime Contributions:",
+              lifetime_total
           )
 
           # ==========================================================
           # CURRENT STREAK
           #
-          # If today has no contribution,
-          # start checking from yesterday.
+          # If there is no contribution today,
+          # start from yesterday.
           # ==========================================================
 
           current_streak = 0
@@ -281,19 +305,19 @@ jobs:
                   timedelta(days=1)
               )
 
-          while (
-              all_days.get(cursor, 0) > 0
-          ):
+          while all_days.get(
+              cursor,
+              0
+          ) > 0:
 
               current_streak += 1
 
-              cursor -= timedelta(
-                  days=1
-              )
+              cursor -= timedelta(days=1)
 
           print(
-              f"Current Streak: "
-              f"{current_streak} days"
+              "Current Streak:",
+              current_streak,
+              "days"
           )
 
           # ==========================================================
@@ -305,16 +329,16 @@ jobs:
           longest_start = None
           longest_end = None
 
-          temp_streak = 0
-          temp_start = None
+          temporary_streak = 0
+          temporary_start = None
 
-          previous_day = None
+          previous_contribution_day = None
 
           for current_day in sorted(
               all_days.keys()
           ):
 
-              contribution = (
+              contribution_count = (
                   all_days[current_day]
               )
 
@@ -322,83 +346,75 @@ jobs:
               # Contribution exists
               # ------------------------------------------------------
 
-              if contribution > 0:
-
-                  # Start new streak if:
-                  #
-                  # 1. No previous streak
-                  # OR
-                  # 2. There is a date gap
-                  #
+              if contribution_count > 0:
 
                   if (
-                      temp_streak == 0
-                      or previous_day is None
+                      temporary_streak == 0
+                      or previous_contribution_day is None
                       or current_day != (
-                          previous_day +
-                          timedelta(days=1)
+                          previous_contribution_day
+                          + timedelta(days=1)
                       )
                   ):
 
-                      temp_streak = 1
+                      temporary_streak = 1
 
-                      temp_start = (
+                      temporary_start = (
                           current_day
                       )
 
                   else:
 
-                      temp_streak += 1
+                      temporary_streak += 1
 
                   # --------------------------------------------------
-                  # Check longest streak
+                  # Save longest streak
                   # --------------------------------------------------
 
                   if (
-                      temp_streak >
-                      longest_streak
+                      temporary_streak
+                      > longest_streak
                   ):
 
                       longest_streak = (
-                          temp_streak
+                          temporary_streak
                       )
 
                       longest_start = (
-                          temp_start
+                          temporary_start
                       )
 
                       longest_end = (
                           current_day
                       )
 
-                  previous_day = (
+                  previous_contribution_day = (
                       current_day
                   )
-
-              # ------------------------------------------------------
-              # No contribution
-              # ------------------------------------------------------
 
               else:
 
-                  temp_streak = 0
-                  temp_start = None
-                  previous_day = (
-                      current_day
+                  temporary_streak = 0
+
+                  temporary_start = None
+
+                  previous_contribution_day = (
+                      None
                   )
 
           print(
-              f"Longest Streak: "
-              f"{longest_streak} days"
+              "Longest Streak:",
+              longest_streak,
+              "days"
           )
 
           # ==========================================================
-          # FORMAT LONGEST STREAK DATE
+          # LONGEST STREAK DATE RANGE
           # ==========================================================
 
           if (
-              longest_start
-              and longest_end
+              longest_start is not None
+              and longest_end is not None
           ):
 
               if (
@@ -408,47 +424,38 @@ jobs:
               ):
 
                   longest_range = (
-                      f"{longest_start.strftime('%b %d')} "
-                      f"- "
-                      f"{longest_end.strftime('%b %d, %Y')}"
+                      f"{longest_start.strftime('%b %-d')}"
+                      f" - "
+                      f"{longest_end.strftime('%b %-d, %Y')}"
                   )
 
               else:
 
                   longest_range = (
-                      f"{longest_start.strftime('%b %d, %Y')} "
-                      f"- "
-                      f"{longest_end.strftime('%b %d, %Y')}"
+                      f"{longest_start.strftime('%b %-d, %Y')}"
+                      f" - "
+                      f"{longest_end.strftime('%b %-d, %Y')}"
                   )
 
           else:
 
-              longest_range = (
-                  "No streak yet"
-              )
-
-          # Remove leading zero from dates
-          longest_range = (
-              longest_range
-              .replace(" 0", " ")
-          )
+              longest_range = "No streak yet"
 
           # ==========================================================
-          # GENERATE PROFESSIONAL SVG
+          # PROFESSIONAL SVG
           # ==========================================================
 
           svg = f'''<svg
             width="900"
             height="300"
             viewBox="0 0 900 300"
-            fill="none"
             xmlns="http://www.w3.org/2000/svg"
           >
 
             <defs>
 
               <linearGradient
-                id="background"
+                id="bg"
                 x1="0"
                 y1="0"
                 x2="900"
@@ -456,6 +463,7 @@ jobs:
                 gradientUnits="userSpaceOnUse"
               >
                 <stop
+                  offset="0"
                   stop-color="#0D1117"
                 />
 
@@ -466,7 +474,7 @@ jobs:
               </linearGradient>
 
               <linearGradient
-                id="accent"
+                id="green"
                 x1="0"
                 y1="0"
                 x2="900"
@@ -474,6 +482,7 @@ jobs:
                 gradientUnits="userSpaceOnUse"
               >
                 <stop
+                  offset="0"
                   stop-color="#39D353"
                 />
 
@@ -502,10 +511,7 @@ jobs:
 
             </defs>
 
-
-            <!-- ================================================= -->
-            <!-- MAIN CARD -->
-            <!-- ================================================= -->
+            <!-- Main Card -->
 
             <rect
               x="10"
@@ -513,16 +519,13 @@ jobs:
               width="880"
               height="280"
               rx="22"
-              fill="url(#background)"
+              fill="url(#bg)"
               stroke="#30363D"
               stroke-width="1"
               filter="url(#shadow)"
             />
 
-
-            <!-- ================================================= -->
-            <!-- TOP ACCENT -->
-            <!-- ================================================= -->
+            <!-- Top Green Accent -->
 
             <rect
               x="10"
@@ -530,13 +533,10 @@ jobs:
               width="880"
               height="5"
               rx="2.5"
-              fill="url(#accent)"
+              fill="url(#green)"
             />
 
-
-            <!-- ================================================= -->
-            <!-- HEADER -->
-            <!-- ================================================= -->
+            <!-- Header -->
 
             <text
               x="45"
@@ -556,13 +556,10 @@ jobs:
               font-family="Arial, Helvetica, sans-serif"
               font-size="14"
             >
-              github.com/{username}
+              github.com/{USERNAME}
             </text>
 
-
-            <!-- ================================================= -->
-            <!-- CURRENT STREAK -->
-            <!-- ================================================= -->
+            <!-- Current Streak -->
 
             <rect
               x="45"
@@ -579,15 +576,15 @@ jobs:
               y="148"
               fill="#39D353"
               font-family="Arial, Helvetica, sans-serif"
-              font-size="15"
-              font-weight="600"
+              font-size="14"
+              font-weight="700"
             >
               CURRENT STREAK
             </text>
 
             <text
               x="68"
-              y="187"
+              y="188"
               fill="#F0F6FC"
               font-family="Arial, Helvetica, sans-serif"
               font-size="32"
@@ -597,8 +594,8 @@ jobs:
             </text>
 
             <text
-              x="115"
-              y="186"
+              x="118"
+              y="187"
               fill="#8B949E"
               font-family="Arial, Helvetica, sans-serif"
               font-size="14"
@@ -606,10 +603,7 @@ jobs:
               days
             </text>
 
-
-            <!-- ================================================= -->
-            <!-- LONGEST STREAK -->
-            <!-- ================================================= -->
+            <!-- Longest Streak -->
 
             <rect
               x="325"
@@ -626,15 +620,15 @@ jobs:
               y="148"
               fill="#58A6FF"
               font-family="Arial, Helvetica, sans-serif"
-              font-size="15"
-              font-weight="600"
+              font-size="14"
+              font-weight="700"
             >
               LONGEST STREAK
             </text>
 
             <text
               x="348"
-              y="187"
+              y="188"
               fill="#F0F6FC"
               font-family="Arial, Helvetica, sans-serif"
               font-size="32"
@@ -645,7 +639,7 @@ jobs:
 
             <text
               x="405"
-              y="186"
+              y="187"
               fill="#8B949E"
               font-family="Arial, Helvetica, sans-serif"
               font-size="14"
@@ -663,10 +657,7 @@ jobs:
               {longest_range}
             </text>
 
-
-            <!-- ================================================= -->
-            <!-- TOTAL CONTRIBUTIONS -->
-            <!-- ================================================= -->
+            <!-- Total Contributions -->
 
             <rect
               x="605"
@@ -683,15 +674,15 @@ jobs:
               y="148"
               fill="#D29922"
               font-family="Arial, Helvetica, sans-serif"
-              font-size="15"
-              font-weight="600"
+              font-size="14"
+              font-weight="700"
             >
               CONTRIBUTIONS
             </text>
 
             <text
               x="628"
-              y="187"
+              y="188"
               fill="#F0F6FC"
               font-family="Arial, Helvetica, sans-serif"
               font-size="32"
@@ -710,10 +701,7 @@ jobs:
               {START_YEAR} - {CURRENT_YEAR}
             </text>
 
-
-            <!-- ================================================= -->
-            <!-- FOOTER -->
-            <!-- ================================================= -->
+            <!-- Footer Line -->
 
             <line
               x1="45"
@@ -722,6 +710,8 @@ jobs:
               y2="240"
               stroke="#30363D"
             />
+
+            <!-- ATSpark -->
 
             <text
               x="45"
@@ -732,6 +722,8 @@ jobs:
             >
               ⭐ ATSpark — Spark Your Digital Future
             </text>
+
+            <!-- Updated -->
 
             <text
               x="855"
@@ -751,17 +743,15 @@ jobs:
           # SAVE SVG
           # ==========================================================
 
-          output_dir = Path(
-              "assets"
-          )
+          output_directory = Path("assets")
 
-          output_dir.mkdir(
+          output_directory.mkdir(
               parents=True,
               exist_ok=True
           )
 
           output_file = (
-              output_dir /
+              output_directory /
               "github-streak.svg"
           )
 
@@ -771,7 +761,7 @@ jobs:
           )
 
           # ==========================================================
-          # FINAL OUTPUT
+          # FINAL RESULTS
           # ==========================================================
 
           print()
@@ -814,10 +804,13 @@ jobs:
           PY
 
       # ============================================================
-      # 3. Commit and Push SVG
+      # COMMIT AND PUSH
       # ============================================================
 
-      - name: Commit updated streak
+      - name: Commit and Push Updated Streak
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
         run: |
 
           git config user.name "github-actions[bot]"
@@ -827,37 +820,84 @@ jobs:
 
           git add assets/github-streak.svg
 
-          # --------------------------------------------------------
-          # Check if SVG actually changed
-          # --------------------------------------------------------
+          # ========================================================
+          # If there is nothing to commit
+          # ========================================================
 
           if git diff --cached --quiet; then
 
-            echo "No changes to commit."
+            echo "No changes to github-streak.svg"
 
             exit 0
 
           fi
 
-          # --------------------------------------------------------
-          # Commit generated SVG
-          # --------------------------------------------------------
-
           git commit \
             -m "chore: update GitHub contribution streak"
 
-          # --------------------------------------------------------
-          # Get latest main branch
-          # --------------------------------------------------------
+          # ========================================================
+          # PUSH WITH RETRY
+          #
+          # This handles the situation where another commit reaches
+          # main while this workflow is running.
+          # ========================================================
 
-          git pull \
-            --rebase \
-            origin main
+          MAX_RETRIES=5
+          RETRY=1
 
-          # --------------------------------------------------------
-          # Push updated SVG
-          # --------------------------------------------------------
+          while [ "$RETRY" -le "$MAX_RETRIES" ]; do
 
-          git push \
-            origin \
-            HEAD:main
+            echo ""
+            echo "=============================================="
+            echo "Push attempt $RETRY/$MAX_RETRIES"
+            echo "=============================================="
+
+            # Get latest remote branch
+            git fetch origin main
+
+            # Rebase our commit on latest remote main
+            if ! git rebase origin/main; then
+
+              echo "Rebase conflict detected."
+
+              git rebase --abort || true
+
+              echo "Refreshing repository..."
+
+              git reset --hard origin/main
+
+              # Regenerate SVG will happen only on a new workflow,
+              # so retry cannot safely continue after conflict.
+              echo "Please run the workflow again."
+
+              exit 1
+
+            fi
+
+            # Try pushing
+            if git push origin HEAD:main; then
+
+              echo ""
+              echo "=============================================="
+              echo "SUCCESS"
+              echo "GitHub streak SVG pushed successfully."
+              echo "=============================================="
+
+              exit 0
+
+            fi
+
+            echo ""
+            echo "Push was rejected."
+            echo "Remote branch changed. Retrying..."
+
+            RETRY=$((RETRY + 1))
+
+            sleep 3
+
+          done
+
+          echo ""
+          echo "Failed to push after $MAX_RETRIES attempts."
+
+          exit 1
