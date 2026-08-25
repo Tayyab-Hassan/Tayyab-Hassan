@@ -1,0 +1,248 @@
+name: Update GitHub Streak
+
+on:
+  schedule:
+    - cron: "0 1 * * *"
+
+  workflow_dispatch:
+
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  update-streak:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Generate GitHub Streak
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_USERNAME: Tayyab-Hassan
+        run: |
+          python3 <<'PY'
+          import os
+          import json
+          import urllib.request
+          from datetime import date, timedelta
+
+          username = os.environ["GITHUB_USERNAME"]
+          token = os.environ["GH_TOKEN"]
+
+          query = """
+          query($login: String!) {
+            user(login: $login) {
+              contributionsCollection {
+                contributionCalendar {
+                  totalContributions
+                  weeks {
+                    contributionDays {
+                      date
+                      contributionCount
+                    }
+                  }
+                }
+              }
+            }
+          }
+          """
+
+          payload = json.dumps({
+              "query": query,
+              "variables": {
+                  "login": username
+              }
+          }).encode()
+
+          request = urllib.request.Request(
+              "https://api.github.com/graphql",
+              data=payload,
+              headers={
+                  "Authorization": f"Bearer {token}",
+                  "Content-Type": "application/json",
+                  "User-Agent": "github-streak-generator"
+              },
+              method="POST"
+          )
+
+          with urllib.request.urlopen(request) as response:
+              result = json.loads(response.read())
+
+          if "errors" in result:
+              print(json.dumps(result["errors"], indent=2))
+              raise SystemExit("GitHub GraphQL API error")
+
+          calendar = result["data"]["user"]["contributionsCollection"]["contributionCalendar"]
+
+          days = []
+
+          for week in calendar["weeks"]:
+              for day in week["contributionDays"]:
+                  days.append({
+                      "date": day["date"],
+                      "count": day["contributionCount"]
+                  })
+
+          days.sort(key=lambda x: x["date"])
+
+          total = calendar["totalContributions"]
+
+          # ----------------------------------------
+          # Calculate current streak
+          # ----------------------------------------
+
+          today = date.today()
+
+          day_map = {
+              date.fromisoformat(x["date"]): x["count"]
+              for x in days
+          }
+
+          current_streak = 0
+          cursor = today
+
+          while day_map.get(cursor, 0) > 0:
+              current_streak += 1
+              cursor -= timedelta(days=1)
+
+          # ----------------------------------------
+          # Calculate longest streak
+          # ----------------------------------------
+
+          longest_streak = 0
+          longest_start = None
+          longest_end = None
+
+          temp_streak = 0
+          temp_start = None
+
+          for item in days:
+              d = date.fromisoformat(item["date"])
+
+              if item["count"] > 0:
+                  if temp_streak == 0:
+                      temp_start = d
+
+                  temp_streak += 1
+
+                  if temp_streak > longest_streak:
+                      longest_streak = temp_streak
+                      longest_start = temp_start
+                      longest_end = d
+
+              else:
+                  temp_streak = 0
+                  temp_start = None
+
+          # ----------------------------------------
+          # Generate SVG
+          # ----------------------------------------
+
+          if longest_start and longest_end:
+              longest_range = (
+                  f"{longest_start.strftime('%b %-d')} - "
+                  f"{longest_end.strftime('%b %-d')}"
+              )
+          else:
+              longest_range = "N/A"
+
+          svg = f'''<svg width="700" height="180" viewBox="0 0 700 180" xmlns="http://www.w3.org/2000/svg">
+            <style>
+              .title {{
+                font: 700 22px Arial, sans-serif;
+                fill: #24292f;
+              }}
+
+              .number {{
+                font: 700 32px Arial, sans-serif;
+                fill: #24292f;
+              }}
+
+              .label {{
+                font: 14px Arial, sans-serif;
+                fill: #57606a;
+              }}
+
+              .small {{
+                font: 12px Arial, sans-serif;
+                fill: #57606a;
+              }}
+            </style>
+
+            <rect
+              x="0"
+              y="0"
+              width="700"
+              height="180"
+              rx="12"
+              fill="#ffffff"
+              stroke="#d0d7de"
+            />
+
+            <text x="30" y="38" class="title">
+              GitHub Contribution Streak
+            </text>
+
+            <text x="30" y="82" class="number">
+              {total}
+            </text>
+
+            <text x="30" y="105" class="label">
+              Total Contributions
+            </text>
+
+            <text x="270" y="82" class="number">
+              {current_streak}
+            </text>
+
+            <text x="270" y="105" class="label">
+              Current Streak
+            </text>
+
+            <text x="500" y="82" class="number">
+              {longest_streak}
+            </text>
+
+            <text x="500" y="105" class="label">
+              Longest Streak
+            </text>
+
+            <text x="500" y="130" class="small">
+              {longest_range}
+            </text>
+
+            <text x="30" y="150" class="small">
+              github.com/{username}
+            </text>
+          </svg>'''
+
+          os.makedirs("assets", exist_ok=True)
+
+          with open("assets/github-streak.svg", "w", encoding="utf-8") as f:
+              f.write(svg)
+
+          print("Total Contributions:", total)
+          print("Current Streak:", current_streak)
+          print("Longest Streak:", longest_streak)
+          print("Longest Range:", longest_range)
+          PY
+
+      - name: Commit updated streak
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add assets/github-streak.svg
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "Update GitHub streak"
+            git push
+          fi
