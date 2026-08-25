@@ -27,6 +27,7 @@ jobs:
           fetch-depth: 0
           ref: main
 
+
       # ============================================================
       # GENERATE STREAK SVG
       # ============================================================
@@ -43,8 +44,10 @@ jobs:
           import os
           import json
           import urllib.request
+
           from datetime import date, timedelta
           from pathlib import Path
+
 
           # ==========================================================
           # CONFIGURATION
@@ -58,6 +61,7 @@ jobs:
           CURRENT_YEAR = TODAY.year
 
           GRAPHQL_URL = "https://api.github.com/graphql"
+
 
           # ==========================================================
           # GRAPHQL QUERY
@@ -81,6 +85,7 @@ jobs:
                     contributionDays {
                       date
                       contributionCount
+                      color
                     }
                   }
                 }
@@ -88,6 +93,7 @@ jobs:
             }
           }
           """
+
 
           # ==========================================================
           # GITHUB GRAPHQL REQUEST
@@ -104,6 +110,7 @@ jobs:
                   }
               }).encode("utf-8")
 
+
               request = urllib.request.Request(
                   GRAPHQL_URL,
                   data=payload,
@@ -115,6 +122,7 @@ jobs:
                   method="POST"
               )
 
+
               with urllib.request.urlopen(
                   request,
                   timeout=60
@@ -123,6 +131,7 @@ jobs:
                   return json.loads(
                       response.read().decode("utf-8")
                   )
+
 
           # ==========================================================
           # FETCH CONTRIBUTIONS
@@ -139,6 +148,7 @@ jobs:
           print(f"End      : {CURRENT_YEAR}")
           print()
 
+
           for year in range(
               START_YEAR,
               CURRENT_YEAR + 1
@@ -149,6 +159,7 @@ jobs:
                   1,
                   1
               )
+
 
               if year == CURRENT_YEAR:
 
@@ -162,10 +173,12 @@ jobs:
                       31
                   )
 
+
               print(
                   f"Fetching {year}: "
                   f"{from_date} -> {to_date}"
               )
+
 
               try:
 
@@ -180,9 +193,11 @@ jobs:
                   print(
                       f"ERROR while fetching {year}:"
                   )
+
                   print(error)
 
                   raise SystemExit(1)
+
 
               # ======================================================
               # GRAPHQL ERRORS
@@ -191,6 +206,7 @@ jobs:
               if "errors" in result:
 
                   print()
+
                   print(
                       "GitHub GraphQL API Error:"
                   )
@@ -204,6 +220,7 @@ jobs:
 
                   raise SystemExit(1)
 
+
               # ======================================================
               # USER
               # ======================================================
@@ -214,12 +231,14 @@ jobs:
                   .get("user")
               )
 
+
               if user is None:
 
                   raise SystemExit(
                       f"GitHub user '{USERNAME}' "
                       f"was not found."
                   )
+
 
               # ======================================================
               # CALENDAR
@@ -233,16 +252,19 @@ jobs:
                   ]
               )
 
+
               year_total = (
                   calendar[
                       "totalContributions"
                   ]
               )
 
+
               print(
                   f"  Contributions: "
                   f"{year_total}"
               )
+
 
               # ======================================================
               # DAILY CONTRIBUTIONS
@@ -260,23 +282,42 @@ jobs:
                           )
                       )
 
+
                       contribution_count = (
                           contribution_day[
                               "contributionCount"
                           ]
                       )
 
+
+                      contribution_color = (
+                          contribution_day.get(
+                              "color",
+                              "#161B22"
+                          )
+                      )
+
+
                       all_days[
                           contribution_date
-                      ] = contribution_count
+                      ] = {
+                          "count":
+                              contribution_count,
+
+                          "color":
+                              contribution_color
+                      }
+
 
           # ==========================================================
           # LIFETIME TOTAL
           # ==========================================================
 
           lifetime_total = sum(
-              all_days.values()
+              item["count"]
+              for item in all_days.values()
           )
+
 
           print()
           print("=" * 70)
@@ -284,6 +325,7 @@ jobs:
               "Lifetime Contributions:",
               lifetime_total
           )
+
 
           # ==========================================================
           # CURRENT STREAK
@@ -294,7 +336,13 @@ jobs:
 
           current_streak = 0
 
-          if all_days.get(TODAY, 0) > 0:
+
+          if (
+              all_days
+              .get(TODAY, {})
+              .get("count", 0)
+              > 0
+          ):
 
               cursor = TODAY
 
@@ -305,20 +353,27 @@ jobs:
                   timedelta(days=1)
               )
 
-          while all_days.get(
-              cursor,
-              0
-          ) > 0:
+
+          while (
+              all_days
+              .get(cursor, {})
+              .get("count", 0)
+              > 0
+          ):
 
               current_streak += 1
 
-              cursor -= timedelta(days=1)
+              cursor -= timedelta(
+                  days=1
+              )
+
 
           print(
               "Current Streak:",
               current_streak,
               "days"
           )
+
 
           # ==========================================================
           # LONGEST STREAK
@@ -334,13 +389,17 @@ jobs:
 
           previous_contribution_day = None
 
+
           for current_day in sorted(
               all_days.keys()
           ):
 
               contribution_count = (
-                  all_days[current_day]
+                  all_days[
+                      current_day
+                  ]["count"]
               )
+
 
               # ------------------------------------------------------
               # Contribution exists
@@ -350,10 +409,13 @@ jobs:
 
                   if (
                       temporary_streak == 0
-                      or previous_contribution_day is None
-                      or current_day != (
+                      or
+                      previous_contribution_day is None
+                      or
+                      current_day != (
                           previous_contribution_day
-                          + timedelta(days=1)
+                          +
+                          timedelta(days=1)
                       )
                   ):
 
@@ -366,6 +428,7 @@ jobs:
                   else:
 
                       temporary_streak += 1
+
 
                   # --------------------------------------------------
                   # Save longest streak
@@ -388,9 +451,11 @@ jobs:
                           current_day
                       )
 
+
                   previous_contribution_day = (
                       current_day
                   )
+
 
               else:
 
@@ -398,9 +463,8 @@ jobs:
 
                   temporary_start = None
 
-                  previous_contribution_day = (
-                      None
-                  )
+                  previous_contribution_day = None
+
 
           print(
               "Longest Streak:",
@@ -408,13 +472,15 @@ jobs:
               "days"
           )
 
+
           # ==========================================================
           # LONGEST STREAK DATE RANGE
           # ==========================================================
 
           if (
               longest_start is not None
-              and longest_end is not None
+              and
+              longest_end is not None
           ):
 
               if (
@@ -441,324 +507,1313 @@ jobs:
 
               longest_range = "No streak yet"
 
+
           # ==========================================================
-          # PROFESSIONAL SVG
+          # PREMIUM SVG DESIGN
+          #
+          # ONLY DESIGN IS CHANGED HERE.
+          # CALCULATION LOGIC ABOVE REMAINS THE SAME.
+          # ==========================================================
+
+          WIDTH = 1200
+          HEIGHT = 730
+
+
+          # ----------------------------------------------------------
+          # Build contribution grid
+          #
+          # Last ~1 year of REAL GitHub contribution data.
+          # ----------------------------------------------------------
+
+          calendar_end = TODAY
+
+          calendar_start = (
+              calendar_end
+              -
+              timedelta(days=364)
+          )
+
+
+          # Align to Sunday.
+
+          calendar_start -= timedelta(
+              days=(
+                  calendar_start.weekday() + 1
+              ) % 7
+          )
+
+
+          calendar_days = []
+
+          cursor = calendar_start
+
+
+          while cursor <= calendar_end:
+
+              calendar_days.append(cursor)
+
+              cursor += timedelta(
+                  days=1
+              )
+
+
+          weeks = []
+
+          current_week = []
+
+
+          for day in calendar_days:
+
+              current_week.append(day)
+
+              if len(current_week) == 7:
+
+                  weeks.append(
+                      current_week
+                  )
+
+                  current_week = []
+
+
+          if current_week:
+
+              while len(current_week) < 7:
+
+                  current_week.append(None)
+
+              weeks.append(
+                  current_week
+              )
+
+
+          # ==========================================================
+          # SVG HELPERS
+          # ==========================================================
+
+          def esc(value):
+
+              return (
+                  str(value)
+                  .replace("&", "&amp;")
+                  .replace("<", "&lt;")
+                  .replace(">", "&gt;")
+                  .replace('"', "&quot;")
+                  .replace("'", "&apos;")
+              )
+
+
+          # ==========================================================
+          # SVG START
           # ==========================================================
 
           svg = f'''<svg
-            width="900"
-            height="300"
-            viewBox="0 0 900 300"
+            width="100%"
+            viewBox="0 0 {WIDTH} {HEIGHT}"
             xmlns="http://www.w3.org/2000/svg"
-          >
+            role="img"
+            aria-label="GitHub Contribution Streak Dashboard">
 
             <defs>
 
+              <!-- Main background -->
+
               <linearGradient
-                id="bg"
+                id="background"
                 x1="0"
                 y1="0"
-                x2="900"
-                y2="300"
-                gradientUnits="userSpaceOnUse"
-              >
+                x2="0"
+                y2="1">
+
                 <stop
-                  offset="0"
-                  stop-color="#0D1117"
+                  offset="0%"
+                  stop-color="#071017"
                 />
 
                 <stop
-                  offset="1"
-                  stop-color="#161B22"
+                  offset="100%"
+                  stop-color="#0B151D"
                 />
+
               </linearGradient>
 
+
+              <!-- Green accent -->
+
               <linearGradient
-                id="green"
+                id="greenAccent"
                 x1="0"
                 y1="0"
-                x2="900"
-                y2="0"
-                gradientUnits="userSpaceOnUse"
-              >
+                x2="1"
+                y2="0">
+
                 <stop
-                  offset="0"
+                  offset="0%"
+                  stop-color="#2EA043"
+                />
+
+                <stop
+                  offset="50%"
                   stop-color="#39D353"
                 />
 
                 <stop
-                  offset="1"
+                  offset="100%"
                   stop-color="#26A641"
                 />
+
               </linearGradient>
+
+
+              <!-- Sparkline -->
+
+              <filter
+                id="glow"
+                x="-50%"
+                y="-50%"
+                width="200%"
+                height="200%">
+
+                <feGaussianBlur
+                  stdDeviation="7"
+                  result="blur"
+                />
+
+                <feMerge>
+
+                  <feMergeNode
+                    in="blur"
+                  />
+
+                  <feMergeNode
+                    in="SourceGraphic"
+                  />
+
+                </feMerge>
+
+              </filter>
+
+
+              <!-- Shadow -->
 
               <filter
                 id="shadow"
                 x="-20%"
                 y="-20%"
                 width="140%"
-                height="140%"
-              >
+                height="140%">
 
                 <feDropShadow
                   dx="0"
                   dy="8"
-                  stdDeviation="12"
-                  flood-opacity="0.25"
+                  stdDeviation="14"
+                  flood-color="#000000"
+                  flood-opacity="0.35"
                 />
 
               </filter>
 
+
+              <style>
+
+                text {{
+                  font-family:
+                    -apple-system,
+                    BlinkMacSystemFont,
+                    "Segoe UI",
+                    Arial,
+                    Helvetica,
+                    sans-serif;
+                }}
+
+
+                .primary {{
+                  fill: #F0F6FC;
+                }}
+
+
+                .secondary {{
+                  fill: #8B949E;
+                }}
+
+
+                .muted {{
+                  fill: #6E7681;
+                }}
+
+
+                .green {{
+                  fill: #39D353;
+                }}
+
+
+                .blue {{
+                  fill: #58A6FF;
+                }}
+
+
+                .gold {{
+                  fill: #D29922;
+                }}
+
+
+                .panel {{
+                  fill: #0D171F;
+                  stroke: #26323A;
+                }}
+
+
+                .panel-green {{
+                  fill: #081B15;
+                  stroke: #1B6339;
+                }}
+
+
+                .panel-blue {{
+                  fill: #0A1826;
+                  stroke: #1D527A;
+                }}
+
+
+                .panel-gold {{
+                  fill: #1A1811;
+                  stroke: #765818;
+                }}
+
+
+                @media (prefers-color-scheme: light) {{
+
+                  .primary {{
+                    fill: #1F2328;
+                  }}
+
+                  .secondary {{
+                    fill: #656D76;
+                  }}
+
+                  .muted {{
+                    fill: #8C959F;
+                  }}
+
+                  .panel {{
+                    fill: #F6F8FA;
+                    stroke: #D0D7DE;
+                  }}
+
+                  .panel-green {{
+                    fill: #F0FFF4;
+                    stroke: #1A7F37;
+                  }}
+
+                  .panel-blue {{
+                    fill: #F0F7FF;
+                    stroke: #0969DA;
+                  }}
+
+                  .panel-gold {{
+                    fill: #FFF8E6;
+                    stroke: #9A6700;
+                  }}
+
+                }}
+
+              </style>
+
             </defs>
 
-            <!-- Main Card -->
+
+            <!-- ===================================================== -->
+            <!-- MAIN CARD                                             -->
+            <!-- ===================================================== -->
 
             <rect
               x="10"
               y="10"
-              width="880"
-              height="280"
-              rx="22"
-              fill="url(#bg)"
-              stroke="#30363D"
-              stroke-width="1"
+              width="1180"
+              height="710"
+              rx="28"
+              fill="url(#background)"
+              stroke="#26323A"
+              stroke-width="2"
               filter="url(#shadow)"
             />
 
-            <!-- Top Green Accent -->
+
+            <!-- ===================================================== -->
+            <!-- TOP GREEN BORDER                                      -->
+            <!-- ===================================================== -->
 
             <rect
               x="10"
               y="10"
-              width="880"
-              height="5"
-              rx="2.5"
-              fill="url(#green)"
+              width="1180"
+              height="7"
+              rx="4"
+              fill="url(#greenAccent)"
             />
 
-            <!-- Header -->
+
+            <!-- ===================================================== -->
+            <!-- HEADER                                                 -->
+            <!-- ===================================================== -->
+
+            <g transform="translate(50 55)">
+
+              <circle
+                cx="55"
+                cy="55"
+                r="48"
+                fill="#101A22"
+                stroke="#4A555E"
+                stroke-width="2"
+              />
+
+
+              <!-- GitHub icon -->
+
+              <path
+                d="
+                  M55 29
+                  C40 29 28 41 28 56
+                  C28 68 36 78 47 82
+                  C49 82.4 50 81.3 50 80
+                  V74
+                  C42 76
+                  40 70
+                  40 70
+                  C38 65
+                  35 64
+                  35 64
+                  C32 62
+                  35 62
+                  35 62
+                  C38 62
+                  37 67
+                  43 69
+                  C43 66
+                  44 64
+                  45 63
+                  C38 62
+                  31 59
+                  31 50
+                  C31 47
+                  33 44
+                  35 42
+                  C35 39
+                  35 36
+                  36 34
+                  C36 34
+                  40 35
+                  44 37
+                  C47 36
+                  50 36
+                  55 36
+                  C58 36
+                  62 36
+                  66 37
+                  C70 35
+                  74 34
+                  74 34
+                  C75 37
+                  75 40
+                  75 42
+                  C77 44
+                  79 47
+                  79 50
+                  C79 59
+                  72 62
+                  65 63
+                  C67 65
+                  68 68
+                  68 72
+                  V80
+                  C68 81
+                  69 82
+                  70 82
+                  C81 78
+                  88 68
+                  88 56
+                  C88 41
+                  70 29
+                  55 29
+                  Z
+                "
+                fill="#F0F6FC"
+              />
+
+
+              <!-- Green status dot -->
+
+              <circle
+                cx="93"
+                cy="91"
+                r="9"
+                fill="#39D353"
+              />
+
+            </g>
+
 
             <text
-              x="45"
-              y="58"
-              fill="#F0F6FC"
-              font-family="Arial, Helvetica, sans-serif"
-              font-size="24"
-              font-weight="700"
-            >
+              x="175"
+              y="92"
+              class="primary"
+              font-size="39"
+              font-weight="800">
+
               GitHub Contribution Streak
+
             </text>
+
 
             <text
-              x="45"
-              y="84"
-              fill="#8B949E"
-              font-family="Arial, Helvetica, sans-serif"
-              font-size="14"
-            >
-              github.com/{USERNAME}
+              x="175"
+              y="130"
+              class="secondary"
+              font-size="20">
+
+              github.com/{esc(USERNAME)}
+
             </text>
 
-            <!-- Current Streak -->
 
-            <rect
-              x="45"
-              y="115"
-              width="250"
-              height="100"
-              rx="16"
-              fill="#161B22"
-              stroke="#30363D"
-            />
+            <!-- ===================================================== -->
+            <!-- TOP RIGHT CONTRIBUTION GRID                          -->
+            <!-- ===================================================== -->
 
-            <text
-              x="68"
-              y="148"
-              fill="#39D353"
-              font-family="Arial, Helvetica, sans-serif"
-              font-size="14"
-              font-weight="700"
-            >
-              CURRENT STREAK
-            </text>
+          '''
 
-            <text
-              x="68"
-              y="188"
-              fill="#F0F6FC"
-              font-family="Arial, Helvetica, sans-serif"
-              font-size="32"
-              font-weight="700"
-            >
-              {current_streak}
-            </text>
 
-            <text
-              x="118"
-              y="187"
-              fill="#8B949E"
-              font-family="Arial, Helvetica, sans-serif"
-              font-size="14"
-            >
-              days
-            </text>
+          # ----------------------------------------------------------
+          # Contribution grid
+          # ----------------------------------------------------------
 
-            <!-- Longest Streak -->
+          grid_x = 850
+          grid_y = 48
 
-            <rect
-              x="325"
-              y="115"
-              width="250"
-              height="100"
-              rx="16"
-              fill="#161B22"
-              stroke="#30363D"
-            />
+          cell = 17
+          gap = 7
 
-            <text
-              x="348"
-              y="148"
-              fill="#58A6FF"
-              font-family="Arial, Helvetica, sans-serif"
-              font-size="14"
-              font-weight="700"
-            >
-              LONGEST STREAK
-            </text>
 
-            <text
-              x="348"
-              y="188"
-              fill="#F0F6FC"
-              font-family="Arial, Helvetica, sans-serif"
-              font-size="32"
-              font-weight="700"
-            >
-              {longest_streak}
-            </text>
+          # Display 17 weeks x 7 days similar to provided design.
 
-            <text
-              x="405"
-              y="187"
-              fill="#8B949E"
-              font-family="Arial, Helvetica, sans-serif"
-              font-size="14"
-            >
-              days
-            </text>
+          display_weeks = weeks[-17:]
 
-            <text
-              x="348"
-              y="204"
-              fill="#8B949E"
-              font-family="Arial, Helvetica, sans-serif"
-              font-size="10"
-            >
-              {longest_range}
-            </text>
 
-            <!-- Total Contributions -->
+          for week_index, week in enumerate(
+              display_weeks
+          ):
 
-            <rect
-              x="605"
-              y="115"
-              width="250"
-              height="100"
-              rx="16"
-              fill="#161B22"
-              stroke="#30363D"
-            />
+              for day_index, day in enumerate(
+                  week
+              ):
 
-            <text
-              x="628"
-              y="148"
-              fill="#D29922"
-              font-family="Arial, Helvetica, sans-serif"
-              font-size="14"
-              font-weight="700"
-            >
-              CONTRIBUTIONS
-            </text>
+                  if day is None:
+                      continue
 
-            <text
-              x="628"
-              y="188"
-              fill="#F0F6FC"
-              font-family="Arial, Helvetica, sans-serif"
-              font-size="32"
-              font-weight="700"
-            >
-              {lifetime_total}
-            </text>
 
-            <text
-              x="628"
-              y="204"
-              fill="#8B949E"
-              font-family="Arial, Helvetica, sans-serif"
-              font-size="10"
-            >
-              {START_YEAR} - {CURRENT_YEAR}
-            </text>
+                  x = (
+                      grid_x
+                      +
+                      week_index
+                      *
+                      (cell + gap)
+                  )
 
-            <!-- Footer Line -->
+
+                  y = (
+                      grid_y
+                      +
+                      day_index
+                      *
+                      (cell + gap)
+                  )
+
+
+                  if day > TODAY:
+
+                      color = "#071A12"
+
+                      count = 0
+
+                  else:
+
+                      entry = (
+                          all_days.get(
+                              day,
+                              {}
+                          )
+                      )
+
+                      count = (
+                          entry.get(
+                              "count",
+                              0
+                          )
+                      )
+
+                      color = (
+                          entry.get(
+                              "color",
+                              "#161B22"
+                          )
+                      )
+
+
+                  svg += f'''
+                  <rect
+                    x="{x}"
+                    y="{y}"
+                    width="{cell}"
+                    height="{cell}"
+                    rx="5"
+                    fill="{esc(color)}"
+                    opacity="0.95">
+
+                    <title>
+                      {esc(day.isoformat())}: {count} contributions
+                    </title>
+
+                  </rect>
+                  '''
+
+
+          svg += f'''
+
+            <!-- ===================================================== -->
+            <!-- DIVIDER                                               -->
+            <!-- ===================================================== -->
 
             <line
-              x1="45"
-              y1="240"
-              x2="855"
-              y2="240"
-              stroke="#30363D"
+              x1="50"
+              y1="195"
+              x2="1150"
+              y2="195"
+              stroke="#243039"
+              stroke-width="1"
+              stroke-dasharray="4 6"
             />
+
+
+            <!-- ===================================================== -->
+            <!-- STAT CARDS                                             -->
+            <!-- ===================================================== -->
+
+            <!-- Current -->
+
+            <rect
+              x="50"
+              y="225"
+              width="340"
+              height="180"
+              rx="20"
+              class="panel-green"
+            />
+
+
+            <circle
+              cx="105"
+              cy="280"
+              r="38"
+              fill="#0C2A20"
+            />
+
+
+            <!-- Lightning icon -->
+
+            <path
+              d="
+                M111 247
+                L93 279
+                H106
+                L101 312
+                L122 274
+                H108
+                Z
+              "
+              fill="#39D353"
+            />
+
+
+            <text
+              x="160"
+              y="277"
+              class="green"
+              font-size="18"
+              font-weight="800">
+
+              CURRENT STREAK
+
+            </text>
+
+
+            <text
+              x="75"
+              y="357"
+              class="primary"
+              font-size="56"
+              font-weight="800">
+
+              {current_streak}
+
+            </text>
+
+
+            <text
+              x="145"
+              y="355"
+              class="secondary"
+              font-size="21">
+
+              {"day" if current_streak == 1 else "days"}
+
+            </text>
+
+
+            <line
+              x1="75"
+              y1="376"
+              x2="365"
+              y2="376"
+              stroke="#1E3430"
+              stroke-width="1"
+              stroke-dasharray="4 5"
+            />
+
+
+            <text
+              x="75"
+              y="397"
+              class="secondary"
+              font-size="13">
+
+              Keep pushing! 💪
+
+            </text>
+
+
+            <!-- Longest -->
+
+            <rect
+              x="430"
+              y="225"
+              width="340"
+              height="180"
+              rx="20"
+              class="panel-blue"
+            />
+
+
+            <circle
+              cx="485"
+              cy="280"
+              r="38"
+              fill="#0D2540"
+            />
+
+
+            <!-- Medal icon -->
+
+            <path
+              d="
+                M472 251
+                H481
+                L485 264
+                L489 251
+                H498
+                L491 272
+                V280
+                H479
+                V272
+                Z
+              "
+              fill="#58A6FF"
+            />
+
+
+            <circle
+              cx="485"
+              cy="293"
+              r="13"
+              fill="#58A6FF"
+            />
+
+
+            <path
+              d="
+                M485 285
+                L488 291
+                L495 292
+                L490 297
+                L491 304
+                L485 301
+                L479 304
+                L480 297
+                L475 292
+                L482 291
+                Z
+              "
+              fill="#0D1724"
+            />
+
+
+            <text
+              x="540"
+              y="277"
+              class="blue"
+              font-size="18"
+              font-weight="800">
+
+              LONGEST STREAK
+
+            </text>
+
+
+            <text
+              x="455"
+              y="357"
+              class="primary"
+              font-size="56"
+              font-weight="800">
+
+              {longest_streak}
+
+            </text>
+
+
+            <text
+              x="525"
+              y="355"
+              class="secondary"
+              font-size="21">
+
+              {"day" if longest_streak == 1 else "days"}
+
+            </text>
+
+
+            <line
+              x1="455"
+              y1="376"
+              x2="745"
+              y2="376"
+              stroke="#203448"
+              stroke-width="1"
+              stroke-dasharray="4 5"
+            />
+
+
+            <text
+              x="455"
+              y="397"
+              class="secondary"
+              font-size="12">
+
+              {esc(longest_range)}
+
+            </text>
+
+
+            <!-- Total -->
+
+            <rect
+              x="810"
+              y="225"
+              width="340"
+              height="180"
+              rx="20"
+              class="panel-gold"
+            />
+
+
+            <circle
+              cx="865"
+              cy="280"
+              r="38"
+              fill="#2B2410"
+            />
+
+
+            <!-- Chart icon -->
+
+            <rect
+              x="845"
+              y="284"
+              width="8"
+              height="20"
+              rx="2"
+              fill="#D29922"
+            />
+
+            <rect
+              x="858"
+              y="273"
+              width="8"
+              height="31"
+              rx="2"
+              fill="#D29922"
+            />
+
+            <rect
+              x="871"
+              y="260"
+              width="8"
+              height="44"
+              rx="2"
+              fill="#D29922"
+            />
+
+            <rect
+              x="884"
+              y="248"
+              width="8"
+              height="56"
+              rx="2"
+              fill="#D29922"
+            />
+
+
+            <text
+              x="920"
+              y="277"
+              class="gold"
+              font-size="18"
+              font-weight="800">
+
+              CONTRIBUTIONS
+
+            </text>
+
+
+            <text
+              x="835"
+              y="357"
+              class="primary"
+              font-size="56"
+              font-weight="800">
+
+              {lifetime_total:,}
+
+            </text>
+
+
+            <line
+              x1="835"
+              y1="376"
+              x2="1125"
+              y2="376"
+              stroke="#3A3018"
+              stroke-width="1"
+              stroke-dasharray="4 5"
+            />
+
+
+            <text
+              x="835"
+              y="397"
+              class="secondary"
+              font-size="12">
+
+              {START_YEAR} - {CURRENT_YEAR}
+
+            </text>
+
+
+            <!-- ===================================================== -->
+            <!-- CONSISTENCY PANEL                                    -->
+            <!-- ===================================================== -->
+
+            <rect
+              x="50"
+              y="435"
+              width="1100"
+              height="145"
+              rx="20"
+              class="panel-green"
+            />
+
+
+            <circle
+              cx="105"
+              cy="507"
+              r="38"
+              fill="#0C2A20"
+            />
+
+
+            <!-- Star -->
+
+            <path
+              d="
+                M105 475
+                L113 495
+                L135 497
+                L118 511
+                L123 533
+                L105 521
+                L87 533
+                L92 511
+                L75 497
+                L97 495
+                Z
+              "
+              fill="#39D353"
+            />
+
+
+            <text
+              x="160"
+              y="496"
+              class="primary"
+              font-size="22"
+              font-weight="800">
+
+              Consistency is the key.
+
+            </text>
+
+
+            <text
+              x="160"
+              y="528"
+              class="secondary"
+              font-size="17">
+
+              Every contribution brings you closer to your goals.
+
+            </text>
+
+
+            <!-- ===================================================== -->
+            <!-- REAL ACTIVITY SPARKLINE                              -->
+            <!-- ===================================================== -->
+
+          '''
+
+
+          # ----------------------------------------------------------
+          # Create activity sparkline from recent contribution data.
+          # No fake contribution numbers are used.
+          # ----------------------------------------------------------
+
+          recent_start = (
+              TODAY
+              -
+              timedelta(days=30)
+          )
+
+
+          recent_counts = []
+
+
+          cursor = recent_start
+
+
+          while cursor <= TODAY:
+
+              recent_counts.append(
+                  all_days
+                  .get(cursor, {})
+                  .get("count", 0)
+              )
+
+              cursor += timedelta(
+                  days=1
+              )
+
+
+          max_count = max(
+              recent_counts
+              or [1]
+          )
+
+
+          points = []
+
+
+          spark_x = 790
+          spark_y = 510
+          spark_width = 285
+          spark_height = 55
+
+
+          for index, value in enumerate(
+              recent_counts
+          ):
+
+              if len(recent_counts) <= 1:
+
+                  x = spark_x
+
+              else:
+
+                  x = (
+                      spark_x
+                      +
+                      (
+                          index
+                          /
+                          (
+                              len(recent_counts)
+                              - 1
+                          )
+                      )
+                      *
+                      spark_width
+                  )
+
+
+              if max_count == 0:
+
+                  normalized = 0
+
+              else:
+
+                  normalized = (
+                      value
+                      /
+                      max_count
+                  )
+
+
+              y = (
+                  spark_y
+                  +
+                  spark_height
+                  -
+                  (
+                      normalized
+                      *
+                      spark_height
+                  )
+              )
+
+
+              points.append(
+                  f"{x:.1f},{y:.1f}"
+              )
+
+
+          polyline_points = " ".join(
+              points
+          )
+
+
+          # Current contribution endpoint.
+
+          final_x = (
+              spark_x
+              +
+              spark_width
+          )
+
+
+          final_value = (
+              recent_counts[-1]
+              if recent_counts
+              else 0
+          )
+
+
+          if max_count == 0:
+
+              final_normalized = 0
+
+          else:
+
+              final_normalized = (
+                  final_value
+                  /
+                  max_count
+              )
+
+
+          final_y = (
+              spark_y
+              +
+              spark_height
+              -
+              (
+                  final_normalized
+                  *
+                  spark_height
+              )
+          )
+
+
+          svg += f'''
+
+            <polyline
+              points="{polyline_points}"
+              fill="none"
+              stroke="#26A641"
+              stroke-width="4"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              opacity="0.35"
+              filter="url(#glow)"
+            />
+
+
+            <polyline
+              points="{polyline_points}"
+              fill="none"
+              stroke="#39D353"
+              stroke-width="3"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+
+
+            <circle
+              cx="{final_x}"
+              cy="{final_y}"
+              r="8"
+              fill="#39D353"
+              filter="url(#glow)"
+            />
+
+
+            <circle
+              cx="{final_x}"
+              cy="{final_y}"
+              r="5"
+              fill="#39D353"
+            />
+
+
+            <!-- ===================================================== -->
+            <!-- FOOTER                                                -->
+            <!-- ===================================================== -->
+
+            <line
+              x1="50"
+              y1="610"
+              x2="1150"
+              y2="610"
+              stroke="#26323A"
+              stroke-width="1"
+            />
+
 
             <!-- ATSpark -->
 
             <text
-              x="45"
-              y="267"
-              fill="#8B949E"
-              font-family="Arial, Helvetica, sans-serif"
-              font-size="12"
-            >
-              ⭐ ATSpark — Spark Your Digital Future
+              x="50"
+              y="650"
+              class="green"
+              font-size="16"
+              font-weight="700">
+
+              🚀 ATSpark
+
             </text>
+
+
+            <text
+              x="160"
+              y="650"
+              class="secondary"
+              font-size="16">
+
+              — Spark Your Digital Future
+
+            </text>
+
 
             <!-- Updated -->
 
+            <circle
+              cx="850"
+              cy="645"
+              r="10"
+              fill="none"
+              stroke="#39D353"
+              stroke-width="2"
+            />
+
+
+            <path
+              d="
+                M850 639
+                V645
+                L854 648
+              "
+              fill="none"
+              stroke="#39D353"
+              stroke-width="2"
+              stroke-linecap="round"
+            />
+
+
             <text
-              x="855"
-              y="267"
-              text-anchor="end"
-              fill="#39D353"
-              font-family="Arial, Helvetica, sans-serif"
-              font-size="12"
-              font-weight="600"
-            >
+              x="875"
+              y="651"
+              class="secondary"
+              font-size="15">
+
               Updated automatically
+
             </text>
 
-          </svg>'''
+
+            <!-- Keep building -->
+
+            <rect
+              x="1015"
+              y="620"
+              width="135"
+              height="46"
+              rx="23"
+              fill="#081B15"
+              stroke="#1B6339"
+              stroke-width="1.5"
+            />
+
+
+            <text
+              x="1082"
+              y="649"
+              text-anchor="middle"
+              class="green"
+              font-size="14"
+              font-weight="700">
+
+              Keep building!
+
+            </text>
+
+
+          </svg>
+          '''
+
 
           # ==========================================================
           # SAVE SVG
           # ==========================================================
 
-          output_directory = Path("assets")
+          output_directory = Path(
+              "assets"
+          )
+
 
           output_directory.mkdir(
               parents=True,
               exist_ok=True
           )
 
+
           output_file = (
-              output_directory /
+              output_directory
+              /
               "github-streak.svg"
           )
+
 
           output_file.write_text(
               svg,
               encoding="utf-8"
           )
+
 
           # ==========================================================
           # FINAL RESULTS
@@ -803,6 +1858,7 @@ jobs:
 
           PY
 
+
       # ============================================================
       # COMMIT AND PUSH
       # ============================================================
@@ -818,11 +1874,11 @@ jobs:
           git config user.email \
             "41898282+github-actions[bot]@users.noreply.github.com"
 
+
           git add assets/github-streak.svg
 
-          # ========================================================
-          # If there is nothing to commit
-          # ========================================================
+
+          # Nothing changed.
 
           if git diff --cached --quiet; then
 
@@ -832,18 +1888,18 @@ jobs:
 
           fi
 
+
           git commit \
             -m "chore: update GitHub contribution streak"
 
+
           # ========================================================
           # PUSH WITH RETRY
-          #
-          # This handles the situation where another commit reaches
-          # main while this workflow is running.
           # ========================================================
 
           MAX_RETRIES=5
           RETRY=1
+
 
           while [ "$RETRY" -le "$MAX_RETRIES" ]; do
 
@@ -852,50 +1908,48 @@ jobs:
             echo "Push attempt $RETRY/$MAX_RETRIES"
             echo "=============================================="
 
-            # Get latest remote branch
+
             git fetch origin main
 
-            # Rebase our commit on latest remote main
+
             if ! git rebase origin/main; then
 
               echo "Rebase conflict detected."
 
               git rebase --abort || true
 
-              echo "Refreshing repository..."
-
-              git reset --hard origin/main
-
-              # Regenerate SVG will happen only on a new workflow,
-              # so retry cannot safely continue after conflict.
               echo "Please run the workflow again."
 
               exit 1
 
             fi
 
-            # Try pushing
+
             if git push origin HEAD:main; then
 
               echo ""
               echo "=============================================="
               echo "SUCCESS"
-              echo "GitHub streak SVG pushed successfully."
               echo "=============================================="
+
+              echo "GitHub streak SVG pushed successfully."
 
               exit 0
 
             fi
 
+
             echo ""
             echo "Push was rejected."
             echo "Remote branch changed. Retrying..."
+
 
             RETRY=$((RETRY + 1))
 
             sleep 3
 
           done
+
 
           echo ""
           echo "Failed to push after $MAX_RETRIES attempts."
